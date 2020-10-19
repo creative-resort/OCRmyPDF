@@ -643,6 +643,7 @@ def _pdf_pageinfo_sync(args):
 def _pdf_pageinfo_concurrent(
     pdf, infile, progbar, max_workers, check_pages, detailed_analysis=False
 ):
+    global worker_pdf  # pylint: disable=global-statement
     pages = [None] * len(pdf.pages)
 
     def update_pageinfo(result, pbar):
@@ -663,17 +664,21 @@ def _pdf_pageinfo_concurrent(
         # a separate process.
         use_threads = True
 
-    exec_progress_pool(
-        use_threads=use_threads,
-        max_workers=n_workers,
-        tqdm_kwargs=dict(
-            total=total, desc="Scanning contents", unit='page', disable=not progbar
-        ),
-        task_initializer=partial(_pdf_pageinfo_sync_init, infile),
-        task=_pdf_pageinfo_sync,
-        task_arguments=contexts,
-        task_finished=update_pageinfo,
-    )
+    try:
+        exec_progress_pool(
+            use_threads=use_threads,
+            max_workers=n_workers,
+            tqdm_kwargs=dict(
+                total=total, desc="Scanning contents", unit='page', disable=not progbar
+            ),
+            task_initializer=partial(_pdf_pageinfo_sync_init, infile),
+            task=_pdf_pageinfo_sync,
+            task_arguments=contexts,
+            task_finished=update_pageinfo,
+        )
+    finally:
+        if worker_pdf:
+            worker_pdf.close()
     return pages
 
 
